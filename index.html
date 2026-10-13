@@ -1,0 +1,834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kim-Leitner Recall Engine</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --card-border: #334155;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.15);
+      --danger: #f43f5e;
+      --danger-bg: rgba(244, 63, 94, 0.15);
+      --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-main);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1.5rem;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 840px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 1rem;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--text-main);
+    }
+
+    .subtitle {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    .date-badge {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 9999px;
+      color: var(--accent);
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+    }
+
+    .grid-leitner {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 0.75rem;
+    }
+
+    .box-stat {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 0.75rem 0.5rem;
+      text-align: center;
+    }
+
+    .box-num {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .box-count {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 0.25rem 0;
+    }
+
+    .box-interval {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+    }
+
+    .btn {
+      appearance: none;
+      border: none;
+      background: var(--accent);
+      color: #0f172a;
+      font-weight: 600;
+      font-size: 0.95rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+      color: #ffffff;
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: var(--card-border);
+      color: var(--text-main);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .timer-container {
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .timer-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      width: 100%;
+      transition: width 1s linear;
+    }
+
+    .grid-words {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 0.875rem;
+      margin: 1.5rem 0;
+    }
+
+    .word-card {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 1.25rem 0.5rem;
+      text-align: center;
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--text-main);
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05);
+    }
+
+    .blurt-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-top: 1rem;
+      min-height: 48px;
+      padding: 0.75rem;
+      background: rgba(15, 23, 42, 0.5);
+      border-radius: 8px;
+      border: 1px dashed var(--card-border);
+    }
+
+    .blurt-chip {
+      background: var(--card-border);
+      color: var(--text-main);
+      font-size: 0.875rem;
+      font-weight: 600;
+      padding: 0.35rem 0.75rem;
+      border-radius: 6px;
+      animation: popIn 0.15s ease-out;
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.85); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .input-group {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .text-input {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      font-size: 1.05rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      outline: none;
+    }
+
+    .text-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+    }
+
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1.25rem;
+    }
+
+    .results-table th, .results-table td {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--card-border);
+      font-size: 0.875rem;
+    }
+
+    .results-table th {
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+
+    .tag-hit {
+      color: var(--success);
+      background: var(--success-bg);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .tag-miss {
+      color: var(--danger);
+      background: var(--danger-bg);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .action-row {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+
+    .phase-instructions {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 1rem;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <div>
+      <h1>Kim-Leitner Recall Engine</h1>
+      <p class="subtitle">Timed Exposure (Kim's) &bull; Free Retrieval (Blurting) &bull; Spaced Repetition (Leitner)</p>
+    </div>
+    <div class="date-badge" id="currentDateBadge">2026-10-10</div>
+  </header>
+
+  <!-- DASHBOARD VIEW -->
+  <section id="viewDashboard" class="card">
+    <h2 style="font-size: 1.15rem; margin-bottom: 0.5rem;">Spaced Repetition Status</h2>
+    <p class="phase-instructions">
+      Daily deck composition: Due review cards from previous sessions plus freshly seeded words for today.
+    </p>
+
+    <div class="grid-leitner">
+      <div class="box-stat">
+        <div class="box-num">Box 1</div>
+        <div class="box-count" id="countBox1">0</div>
+        <div class="box-interval">Daily</div>
+      </div>
+      <div class="box-stat">
+        <div class="box-num">Box 2</div>
+        <div class="box-count" id="countBox2">0</div>
+        <div class="box-interval">3 Days</div>
+      </div>
+      <div class="box-stat">
+        <div class="box-num">Box 3</div>
+        <div class="box-count" id="countBox3">0</div>
+        <div class="box-interval">7 Days</div>
+      </div>
+      <div class="box-stat">
+        <div class="box-num">Box 4</div>
+        <div class="box-count" id="countBox4">0</div>
+        <div class="box-interval">14 Days</div>
+      </div>
+      <div class="box-stat">
+        <div class="box-num">Box 5</div>
+        <div class="box-count" id="countBox5">0</div>
+        <div class="box-interval">Mastered</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+      <div>
+        <span style="font-size: 0.875rem; color: var(--text-muted);">Due for review today:</span>
+        <strong style="color: var(--text-main); margin-left: 0.25rem;" id="dueReviewsCount">0</strong>
+      </div>
+      <div style="display: flex; gap: 0.75rem;">
+        <button class="btn btn-secondary" id="btnResetProgress" style="font-size: 0.8rem; padding: 0.5rem 0.75rem;">Reset Storage</button>
+        <button class="btn" id="btnStartDaily">Start Daily Session (10 Words)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- PHASE 1: KIM'S GAME (OBSERVATION) -->
+  <section id="viewObservation" class="card hidden">
+    <div class="timer-container">
+      <div class="timer-header">
+        <span>Phase 1: Observation (Kim's Game)</span>
+        <span id="obsTimerText">30s</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="obsProgressBar"></div>
+      </div>
+    </div>
+    <p class="phase-instructions">
+      Commit these 10 items to working memory. Screen will wipe completely when the timer expires.
+    </p>
+
+    <div class="grid-words" id="obsWordGrid"></div>
+
+    <div class="action-row">
+      <button class="btn btn-secondary" id="btnSkipObs">Ready to Blurt</button>
+    </div>
+  </section>
+
+  <!-- PHASE 2: BLURTING (FREE RETRIEVAL) -->
+  <section id="viewBlurting" class="card hidden">
+    <div class="timer-container">
+      <div class="timer-header">
+        <span>Phase 2: Blurting (Unprompted Dump)</span>
+        <span id="blurtTimerText">60s</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="blurtProgressBar"></div>
+      </div>
+    </div>
+    <p class="phase-instructions">
+      Type items in any order. Press <strong>Enter</strong> or click <strong>Add</strong> after each word.
+    </p>
+
+    <div class="input-group">
+      <input type="text" id="blurtInput" class="text-input" placeholder="Type a recalled word..." autocomplete="off" autofocus />
+      <button class="btn" id="btnAddBlurt">Add</button>
+    </div>
+
+    <div class="blurt-chips" id="blurtChipContainer">
+      <span style="color: var(--text-muted); font-size: 0.85rem;" id="emptyChipsPlaceholder">No words blurted yet...</span>
+    </div>
+
+    <div class="action-row">
+      <button class="btn" id="btnFinishBlurting">Finish Blurting</button>
+    </div>
+  </section>
+
+  <!-- PHASE 3: LEITNER EVALUATION RESULTS -->
+  <section id="viewResults" class="card hidden">
+    <h2 style="font-size: 1.25rem; margin-bottom: 0.25rem;">Session Evaluation & Spaced Updates</h2>
+    <p class="phase-instructions" id="resultsSummaryText">
+      Performance analysis and box promotions/demotions applied.
+    </p>
+
+    <table class="results-table">
+      <thead>
+        <tr>
+          <th>Target Word</th>
+          <th>Status</th>
+          <th>Prior Box</th>
+          <th>New Box</th>
+          <th>Next Review</th>
+        </tr>
+      </thead>
+      <tbody id="resultsTableBody"></tbody>
+    </table>
+
+    <div class="action-row">
+      <button class="btn" id="btnReturnDashboard">Return to Dashboard</button>
+    </div>
+  </section>
+</div>
+
+<script>
+/**
+ * Static Curated Word Pool (Category-balanced)
+ * 300+ clean, distinct, concrete and conceptual nouns.
+ */
+const VOCABULARY_BANK = [
+  "Abacus", "Algorithm", "Alloy", "Altimeter", "Amber", "Amphora", "Anvil", "Aperture", "Aqueduct", "Archipelago",
+  "Armature", "Astrolabe", "Atlas", "Atrium", "Aurora", "Avocado", "Azimuth", "Ballast", "Basalt", "Bastion",
+  "Beacon", "Bellows", "Bioluminescence", "Bitumen", "Bivouac", "Blockade", "Bollard", "Boulevard", "Bracket", "Brass",
+  "Breaker", "Brigantine", "Brimstone", "Cacophony", "Caldera", "Caliber", "Calyx", "Camshaft", "Canopy", "Capstan",
+  "Caravel", "Carillon", "Cartilage", "Cascade", "Cenotaph", "Centrifuge", "Chalcedony", "Chalice", "Chasm", "Chimera",
+  "Chronometer", "Cinnabar", "Citadel", "Clavicle", "Cleat", "Cloister", "Cobalt", "Coffer", "Colonnade", "Compass",
+  "Conduit", "Conifer", "Constellation", "Copula", "Corbel", "Corridor", "Cortex", "Cotter", "Crankshaft", "Crescent",
+  "Crucible", "Crypt", "Culvert", "Cupola", "Current", "Curvature", "Cyclotron", "Cylinder", "Davit", "Declination",
+  "Defile", "Delta", "Dendrite", "Derrick", "Diaphragm", "Diffraction", "Dike", "Dispersal", "Diurnal", "Dolmen",
+  "Dowel", "Dredge", "Drydock", "Dune", "Dynamo", "Eclipse", "Ecosystem", "Effluent", "Egress", "Elevation",
+  "Embouchure", "Empennage", "Enclave", "Entropy", "Epicenter", "Epaulet", "Equinox", "Escarpment", "Estuary", "Evaporation",
+  "Exoskeleton", "Faceting", "Faction", "Fallow", "Farad", "Fastener", "Faultline", "Feldspar", "Ferrule", "Filament",
+  "Filigree", "Filter", "Flange", "Fletching", "Flint", "Flowstone", "Fluidity", "Flux", "Flywheel", "Foothill",
+  "Foramen", "Forecastle", "Forge", "Forklift", "Fracture", "Fresnel", "Frontier", "Fulcrum", "Furnace", "Fuselage",
+  "Galena", "Gallop", "Galvanism", "Gantry", "Gargoyle", "Garnet", "Gasket", "Gauntlet", "Geode", "Geodesic",
+  "Geyser", "Gibbet", "Glacier", "Gnomon", "Gradient", "Graphite", "Graticule", "Grommet", "Groyne", "Guano",
+  "Gudgeon", "Gullet", "Gunwale", "Gyroscope", "Habitat", "Halcyon", "Half-life", "Halite", "Hallmark", "Halyard",
+  "Hamlet", "Hangar", "Harbor", "Hatchway", "Hawser", "Headland", "Helix", "Helmsman", "Hemisphere", "Hemihedral",
+  "Herbarium", "Hermitage", "Hexagon", "Hillock", "Hinterland", "Holster", "Horizon", "Humus", "Hydrant", "Hydraulic",
+  "Hypha", "Hypotenuse", "Igloo", "Ignition", "Illuvium", "Impact", "Impeller", "Incline", "Indicator", "Inductor",
+  "Inflection", "Ingot", "Injector", "Inlet", "Insulator", "Intaglio", "Integral", "Interface", "Interlock", "Interval",
+  "Invar", "Inventory", "Iris", "Isobar", "Isotherm", "Isotope", "Isthmus", "Jackstay", "Jacquard", "Jamb",
+  "Javelin", "Jetty", "Jib", "Joist", "Junction", "Juror", "Kame", "Kaolin", "Keelson", "Kelp",
+  "Kernel", "Ketch", "Keystone", "Kiln", "Kinematics", "Kinetic", "Kiosk", "Knoll", "Krypton", "Lacuna",
+  "Lamella", "Lancet", "Lapidary", "Lath", "Lattice", "Lava", "Leadline", "Leeward", "Legume", "Lens",
+  "Levee", "Lever", "Lichen", "Ligament", "Lignite", "Limestone", "Linchpin", "Lineament", "Lintel", "Lithosphere",
+  "Logbook", "Longitudinal", "Loom", "Louvre", "Lubricant", "Lugger", "Luminance", "Lunette", "Lymph", "Magma",
+  "Magnetar", "Magneto", "Malachite", "Mandible", "Manifold", "Mantle", "Mapmaker", "Mariner", "Marrow", "Masthead",
+  "Matrix", "Mausoleum", "Meander", "Melanite", "Mensa", "Meridian", "Mesa", "Metamorphic", "Meteorite", "Micelle",
+  "Midden", "Millstone", "Monadnock", "Monolith", "Moor", "Moraine", "Mortise", "Motif", "Mucilage", "Muffler",
+  "Mulch", "Mullion", "Mycelium", "Nadir", "Nanotube", "Naphtha", "Nebula", "Needle", "Nephrite", "Niche"
+];
+
+// Leitner intervals in days: Box 1 (1d), Box 2 (3d), Box 3 (7d), Box 4 (14d), Box 5 (30d)
+const LEITNER_INTERVALS = { 1: 1, 2: 3, 3: 7, 4: 14, 5: 30 };
+const DAILY_TARGET_SIZE = 10;
+const OBS_DURATION_SEC = 30;
+const BLURT_DURATION_SEC = 60;
+
+/**
+ * Deterministic PRNG: Mulberry32
+ * ponytail: Mulberry32 PRNG for deterministic daily word seeding
+ */
+function mulberry32(seed) {
+  return function() {
+    let t = seed += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function hashString(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = Math.imul(31, hash) + str.charCodeAt(i) | 0;
+  }
+  return hash;
+}
+
+function getTodayString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateString(dateStr, days) {
+  const parts = dateStr.split('-');
+  const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+  date.setDate(date.getDate() + days);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+// STORAGE REPOSITORY
+const STORAGE_KEY = 'kim_leitner_v1';
+
+function loadStore() {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    return {
+      cards: {}, // word -> { box: 1..5, nextReview: 'YYYY-MM-DD', lastTested: 'YYYY-MM-DD' }
+      history: []
+    };
+  }
+  try {
+    return JSON.parse(raw);
+  } catch(e) {
+    console.error('Failed to parse localStorage data, resetting', e);
+    return { cards: {}, history: [] };
+  }
+}
+
+function saveStore(store) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+
+// APP CONTROLLER STATE
+let currentSession = {
+  activeWords: [], // list of strings
+  blurtedWords: new Set(),
+  timerId: null,
+  timerSecondsLeft: 0
+};
+
+// UI ELEMENTS
+const viewDashboard = document.getElementById('viewDashboard');
+const viewObservation = document.getElementById('viewObservation');
+const viewBlurting = document.getElementById('viewBlurting');
+const viewResults = document.getElementById('viewResults');
+
+const currentDateBadge = document.getElementById('currentDateBadge');
+const countBox1 = document.getElementById('countBox1');
+const countBox2 = document.getElementById('countBox2');
+const countBox3 = document.getElementById('countBox3');
+const countBox4 = document.getElementById('countBox4');
+const countBox5 = document.getElementById('countBox5');
+const dueReviewsCount = document.getElementById('dueReviewsCount');
+
+const btnStartDaily = document.getElementById('btnStartDaily');
+const btnResetProgress = document.getElementById('btnResetProgress');
+
+const obsTimerText = document.getElementById('obsTimerText');
+const obsProgressBar = document.getElementById('obsProgressBar');
+const obsWordGrid = document.getElementById('obsWordGrid');
+const btnSkipObs = document.getElementById('btnSkipObs');
+
+const blurtTimerText = document.getElementById('blurtTimerText');
+const blurtProgressBar = document.getElementById('blurtProgressBar');
+const blurtInput = document.getElementById('blurtInput');
+const btnAddBlurt = document.getElementById('btnAddBlurt');
+const blurtChipContainer = document.getElementById('blurtChipContainer');
+const emptyChipsPlaceholder = document.getElementById('emptyChipsPlaceholder');
+const btnFinishBlurting = document.getElementById('btnFinishBlurting');
+
+const resultsSummaryText = document.getElementById('resultsSummaryText');
+const resultsTableBody = document.getElementById('resultsTableBody');
+const btnReturnDashboard = document.getElementById('btnReturnDashboard');
+
+function updateDashboardUI() {
+  const today = getTodayString();
+  currentDateBadge.textContent = today;
+
+  const store = loadStore();
+  const counts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  let dueCount = 0;
+
+  for (const word in store.cards) {
+    const card = store.cards[word];
+    counts[card.box] = (counts[card.box] || 0) + 1;
+    if (card.nextReview <= today) {
+      dueCount++;
+    }
+  }
+
+  countBox1.textContent = counts[1];
+  countBox2.textContent = counts[2];
+  countBox3.textContent = counts[3];
+  countBox4.textContent = counts[4];
+  countBox5.textContent = counts[5];
+  dueReviewsCount.textContent = dueCount;
+}
+
+function assembleDailyDeck() {
+  const today = getTodayString();
+  const store = loadStore();
+  
+  // 1. Gather due cards from Leitner boxes
+  const dueWords = [];
+  for (const word in store.cards) {
+    if (store.cards[word].nextReview <= today) {
+      dueWords.push(word);
+    }
+  }
+
+  // Shuffle due cards using date seed to keep deterministic
+  const seed = hashString(today);
+  const rng = mulberry32(seed);
+  dueWords.sort(() => rng() - 0.5);
+
+  const selected = dueWords.slice(0, DAILY_TARGET_SIZE);
+
+  // 2. Fill remainder with deterministically sampled new words
+  if (selected.length < DAILY_TARGET_SIZE) {
+    const needed = DAILY_TARGET_SIZE - selected.length;
+    const knownSet = new Set(Object.keys(store.cards));
+    const availableNew = VOCABULARY_BANK.filter(w => !knownSet.has(w));
+    
+    // Deterministic shuffle of unlearned vocabulary
+    availableNew.sort(() => rng() - 0.5);
+    const newItems = availableNew.slice(0, needed);
+    selected.push(...newItems);
+  }
+
+  // Final shuffle of the 10 words so reviews and new words mix
+  selected.sort(() => rng() - 0.5);
+  return selected;
+}
+
+function showView(view) {
+  [viewDashboard, viewObservation, viewBlurting, viewResults].forEach(v => v.classList.add('hidden'));
+  view.classList.remove('hidden');
+}
+
+// PHASE 1: OBSERVATION
+function startObservationPhase() {
+  currentSession.activeWords = assembleDailyDeck();
+  currentSession.blurtedWords = new Set();
+  
+  obsWordGrid.innerHTML = '';
+  currentSession.activeWords.forEach(word => {
+    const el = document.createElement('div');
+    el.className = 'word-card';
+    el.textContent = word;
+    obsWordGrid.appendChild(el);
+  });
+
+  showView(viewObservation);
+
+  currentSession.timerSecondsLeft = OBS_DURATION_SEC;
+  obsTimerText.textContent = `${currentSession.timerSecondsLeft}s`;
+  obsProgressBar.style.width = '100%';
+
+  if (currentSession.timerId) clearInterval(currentSession.timerId);
+
+  currentSession.timerId = setInterval(() => {
+    currentSession.timerSecondsLeft--;
+    obsTimerText.textContent = `${currentSession.timerSecondsLeft}s`;
+    const pct = (currentSession.timerSecondsLeft / OBS_DURATION_SEC) * 100;
+    obsProgressBar.style.width = `${pct}%`;
+
+    if (currentSession.timerSecondsLeft <= 0) {
+      clearInterval(currentSession.timerId);
+      startBlurtingPhase();
+    }
+  }, 1000);
+}
+
+btnSkipObs.addEventListener('click', () => {
+  if (currentSession.timerId) clearInterval(currentSession.timerId);
+  startBlurtingPhase();
+});
+
+// PHASE 2: BLURTING
+function startBlurtingPhase() {
+  showView(viewBlurting);
+  blurtChipContainer.innerHTML = '';
+  blurtChipContainer.appendChild(emptyChipsPlaceholder);
+  emptyChipsPlaceholder.classList.remove('hidden');
+  blurtInput.value = '';
+  blurtInput.focus();
+
+  currentSession.timerSecondsLeft = BLURT_DURATION_SEC;
+  blurtTimerText.textContent = `${currentSession.timerSecondsLeft}s`;
+  blurtProgressBar.style.width = '100%';
+
+  if (currentSession.timerId) clearInterval(currentSession.timerId);
+
+  currentSession.timerId = setInterval(() => {
+    currentSession.timerSecondsLeft--;
+    blurtTimerText.textContent = `${currentSession.timerSecondsLeft}s`;
+    const pct = (currentSession.timerSecondsLeft / BLURT_DURATION_SEC) * 100;
+    blurtProgressBar.style.width = `${pct}%`;
+
+    if (currentSession.timerSecondsLeft <= 0) {
+      clearInterval(currentSession.timerId);
+      finishBlurtingPhase();
+    }
+  }, 1000);
+}
+
+function handleAddBlurtWord() {
+  const raw = blurtInput.value.trim();
+  if (!raw) return;
+
+  const normalized = raw.toLowerCase();
+  if (!currentSession.blurtedWords.has(normalized)) {
+    currentSession.blurtedWords.add(normalized);
+
+    if (!emptyChipsPlaceholder.classList.contains('hidden')) {
+      emptyChipsPlaceholder.classList.add('hidden');
+    }
+
+    const chip = document.createElement('span');
+    chip.className = 'blurt-chip';
+    chip.textContent = raw;
+    blurtChipContainer.appendChild(chip);
+  }
+
+  blurtInput.value = '';
+  blurtInput.focus();
+}
+
+blurtInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleAddBlurtWord();
+  }
+});
+
+btnAddBlurt.addEventListener('click', handleAddBlurtWord);
+
+btnFinishBlurting.addEventListener('click', () => {
+  if (currentSession.timerId) clearInterval(currentSession.timerId);
+  finishBlurtingPhase();
+});
+
+// PHASE 3: EVALUATION & LEITNER RESOLUTION
+function finishBlurtingPhase() {
+  const store = loadStore();
+  const today = getTodayString();
+  const normalizedBlurted = new Set(Array.from(currentSession.blurtedWords).map(w => w.toLowerCase()));
+
+  resultsTableBody.innerHTML = '';
+  let correctCount = 0;
+
+  currentSession.activeWords.forEach(word => {
+    const isRecalled = normalizedBlurted.has(word.toLowerCase());
+    const existingCard = store.cards[word];
+    const prevBox = existingCard ? existingCard.box : 0;
+    let newBox = 1;
+
+    if (isRecalled) {
+      correctCount++;
+      newBox = existingCard ? Math.min(5, existingCard.box + 1) : 2; // New recalled words advance to Box 2
+    } else {
+      newBox = 1; // Missed items demote directly to Box 1
+    }
+
+    const intervalDays = LEITNER_INTERVALS[newBox];
+    const nextReview = addDaysToDateString(today, intervalDays);
+
+    // Commit to Leitner database
+    store.cards[word] = {
+      box: newBox,
+      nextReview: nextReview,
+      lastTested: today
+    };
+
+    // Render table row
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td><strong>${word}</strong></td>
+      <td><span class="${isRecalled ? 'tag-hit' : 'tag-miss'}">${isRecalled ? 'RECALLED' : 'MISSED'}</span></td>
+      <td>${prevBox === 0 ? 'New Item' : `Box ${prevBox}`}</td>
+      <td><strong>Box ${newBox}</strong></td>
+      <td>${nextReview} (${intervalDays}d)</td>
+    `;
+    resultsTableBody.appendChild(row);
+  });
+
+  saveStore(store);
+
+  resultsSummaryText.textContent = `Score: ${correctCount}/${currentSession.activeWords.length} (${Math.round((correctCount / currentSession.activeWords.length) * 100)}%). Spaced review intervals adjusted.`;
+  showView(viewResults);
+}
+
+btnReturnDashboard.addEventListener('click', () => {
+  updateDashboardUI();
+  showView(viewDashboard);
+});
+
+btnStartDaily.addEventListener('click', () => {
+  startObservationPhase();
+});
+
+btnResetProgress.addEventListener('click', () => {
+  if (confirm('Reset all Leitner memory progress and return to day one?')) {
+    localStorage.removeItem(STORAGE_KEY);
+    updateDashboardUI();
+  }
+});
+
+// INITIALIZE
+updateDashboardUI();
+</script>
+</body>
+</html>
