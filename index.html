@@ -290,6 +290,63 @@
       display: inline-block;
     }
 
+    .tag-typo {
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.15);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .tag-phase {
+      color: var(--text-muted);
+      background: rgba(148, 163, 184, 0.12);
+      padding: 0.2rem 0.45rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-block;
+    }
+
+    .daily-status-banner {
+      margin-top: 1.25rem;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      background: var(--success-bg);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: var(--success);
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    .intrusions-box {
+      margin-top: 1.25rem;
+      padding: 0.875rem 1rem;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px dashed var(--card-border);
+    }
+
+    .intrusions-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+
+    .intrusion-chip {
+      display: inline-block;
+      background: var(--danger-bg);
+      color: var(--danger);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.25rem 0.6rem;
+      border-radius: 6px;
+      margin: 0.2rem 0.3rem 0.2rem 0;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -355,6 +412,10 @@
       </div>
     </div>
 
+    <div id="dailyStatusBanner" class="daily-status-banner hidden">
+      Today's daily session is complete. You can still play a bonus round with fresh words.
+    </div>
+
     <div style="margin-top: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
       <div>
         <span style="font-size: 0.875rem; color: var(--text-muted);">Due for review today:</span>
@@ -371,14 +432,14 @@
   <section id="viewObservation" class="card hidden">
     <div class="timer-container">
       <div class="timer-header">
-        <span>Phase 1: Observation (Kim's Game)</span>
+        <span id="obsPhaseTitle">Phase 1: Observation (Kim's Game)</span>
         <span id="obsTimerText">30s</span>
       </div>
       <div class="progress-bar-bg">
         <div class="progress-bar-fill" id="obsProgressBar"></div>
       </div>
     </div>
-    <p class="phase-instructions">
+    <p class="phase-instructions" id="obsInstructions">
       Commit these 10 items to working memory. Screen will wipe completely when the timer expires.
     </p>
 
@@ -393,14 +454,14 @@
   <section id="viewBlurting" class="card hidden">
     <div class="timer-container">
       <div class="timer-header">
-        <span>Phase 2: Blurting (Unprompted Dump)</span>
+        <span id="blurtPhaseTitle">Phase 2: Blurting (Unprompted Dump)</span>
         <span id="blurtTimerText">60s</span>
       </div>
       <div class="progress-bar-bg">
         <div class="progress-bar-fill" id="blurtProgressBar"></div>
       </div>
     </div>
-    <p class="phase-instructions">
+    <p class="phase-instructions" id="blurtInstructions">
       Type items in any order. Press <strong>Enter</strong> or click <strong>Add</strong> after each word.
     </p>
 
@@ -429,6 +490,7 @@
       <thead>
         <tr>
           <th>Target Word</th>
+          <th>Source</th>
           <th>Status</th>
           <th>Prior Box</th>
           <th>New Box</th>
@@ -437,6 +499,11 @@
       </thead>
       <tbody id="resultsTableBody"></tbody>
     </table>
+
+    <div id="intrusionsSection" class="intrusions-box hidden">
+      <div class="intrusions-title">Intrusion Errors (Not in Today's Deck)</div>
+      <div id="intrusionsList"></div>
+    </div>
 
     <div class="action-row">
       <button class="btn" id="btnReturnDashboard">Return to Dashboard</button>
@@ -553,8 +620,12 @@ function saveStore(store) {
 
 // APP CONTROLLER STATE
 let currentSession = {
-  activeWords: [], // list of strings
-  blurtedWords: new Set(),
+  dueWords: [],
+  newWords: [],
+  dueBlurts: [],
+  newBlurts: [],
+  activeBlurts: new Map(), // normalized -> raw
+  stage: 'idle', // 'cold_recall' | 'new_obs' | 'new_blurt'
   timerId: null,
   timerSecondsLeft: 0
 };
@@ -572,15 +643,20 @@ const countBox3 = document.getElementById('countBox3');
 const countBox4 = document.getElementById('countBox4');
 const countBox5 = document.getElementById('countBox5');
 const dueReviewsCount = document.getElementById('dueReviewsCount');
+const dailyStatusBanner = document.getElementById('dailyStatusBanner');
 
 const btnStartDaily = document.getElementById('btnStartDaily');
 const btnResetProgress = document.getElementById('btnResetProgress');
 
+const obsPhaseTitle = document.getElementById('obsPhaseTitle');
+const obsInstructions = document.getElementById('obsInstructions');
 const obsTimerText = document.getElementById('obsTimerText');
 const obsProgressBar = document.getElementById('obsProgressBar');
 const obsWordGrid = document.getElementById('obsWordGrid');
 const btnSkipObs = document.getElementById('btnSkipObs');
 
+const blurtPhaseTitle = document.getElementById('blurtPhaseTitle');
+const blurtInstructions = document.getElementById('blurtInstructions');
 const blurtTimerText = document.getElementById('blurtTimerText');
 const blurtProgressBar = document.getElementById('blurtProgressBar');
 const blurtInput = document.getElementById('blurtInput');
@@ -591,6 +667,8 @@ const btnFinishBlurting = document.getElementById('btnFinishBlurting');
 
 const resultsSummaryText = document.getElementById('resultsSummaryText');
 const resultsTableBody = document.getElementById('resultsTableBody');
+const intrusionsSection = document.getElementById('intrusionsSection');
+const intrusionsList = document.getElementById('intrusionsList');
 const btnReturnDashboard = document.getElementById('btnReturnDashboard');
 
 function updateDashboardUI() {
@@ -615,42 +693,45 @@ function updateDashboardUI() {
   countBox4.textContent = counts[4];
   countBox5.textContent = counts[5];
   dueReviewsCount.textContent = dueCount;
+
+  const completedToday = store.lastSessionDate === today;
+  dailyStatusBanner.classList.toggle('hidden', !completedToday);
+  btnStartDaily.textContent = completedToday
+    ? 'Play Bonus Round'
+    : `Start Daily Session (${DAILY_TARGET_SIZE} Words)`;
 }
 
 function assembleDailyDeck() {
   const today = getTodayString();
   const store = loadStore();
-  
+
   // 1. Gather due cards from Leitner boxes
-  const dueWords = [];
+  const duePool = [];
   for (const word in store.cards) {
     if (store.cards[word].nextReview <= today) {
-      dueWords.push(word);
+      duePool.push(word);
     }
   }
 
   // Shuffle due cards using date seed to keep deterministic
   const seed = hashString(today);
   const rng = mulberry32(seed);
-  dueWords.sort(() => rng() - 0.5);
+  duePool.sort(() => rng() - 0.5);
 
-  const selected = dueWords.slice(0, DAILY_TARGET_SIZE);
+  const dueWords = duePool.slice(0, DAILY_TARGET_SIZE);
 
   // 2. Fill remainder with deterministically sampled new words
-  if (selected.length < DAILY_TARGET_SIZE) {
-    const needed = DAILY_TARGET_SIZE - selected.length;
+  let newWords = [];
+  if (dueWords.length < DAILY_TARGET_SIZE) {
+    const needed = DAILY_TARGET_SIZE - dueWords.length;
     const knownSet = new Set(Object.keys(store.cards));
     const availableNew = VOCABULARY_BANK.filter(w => !knownSet.has(w));
-    
-    // Deterministic shuffle of unlearned vocabulary
+
     availableNew.sort(() => rng() - 0.5);
-    const newItems = availableNew.slice(0, needed);
-    selected.push(...newItems);
+    newWords = availableNew.slice(0, needed);
   }
 
-  // Final shuffle of the 10 words so reviews and new words mix
-  selected.sort(() => rng() - 0.5);
-  return selected;
+  return { dueWords, newWords };
 }
 
 function showView(view) {
@@ -658,13 +739,33 @@ function showView(view) {
   view.classList.remove('hidden');
 }
 
-// PHASE 1: OBSERVATION
+function startSession() {
+  const { dueWords, newWords } = assembleDailyDeck();
+  currentSession.dueWords = dueWords;
+  currentSession.newWords = newWords;
+  currentSession.dueBlurts = [];
+  currentSession.newBlurts = [];
+
+  if (dueWords.length > 0) {
+    startBlurtingPhase('cold_recall');
+  } else {
+    startObservationPhase();
+  }
+}
+
+// PHASE: OBSERVATION (NEW WORDS ONLY)
 function startObservationPhase() {
-  currentSession.activeWords = assembleDailyDeck();
-  currentSession.blurtedWords = new Set();
-  
+  currentSession.stage = 'new_obs';
+  const count = currentSession.newWords.length;
+  const hasColdRecall = currentSession.dueWords.length > 0;
+
+  obsPhaseTitle.textContent = hasColdRecall
+    ? `Phase 2a: Observation (${count} New Words)`
+    : `Phase 1: Observation (Kim's Game)`;
+  obsInstructions.textContent = `Commit these ${count} new ${count === 1 ? 'item' : 'items'} to working memory. Screen will wipe completely when the timer expires.`;
+
   obsWordGrid.innerHTML = '';
-  currentSession.activeWords.forEach(word => {
+  currentSession.newWords.forEach(word => {
     const el = document.createElement('div');
     el.className = 'word-card';
     el.textContent = word;
@@ -687,18 +788,35 @@ function startObservationPhase() {
 
     if (currentSession.timerSecondsLeft <= 0) {
       clearInterval(currentSession.timerId);
-      startBlurtingPhase();
+      startBlurtingPhase('new_blurt');
     }
   }, 1000);
 }
 
 btnSkipObs.addEventListener('click', () => {
   if (currentSession.timerId) clearInterval(currentSession.timerId);
-  startBlurtingPhase();
+  startBlurtingPhase('new_blurt');
 });
 
-// PHASE 2: BLURTING
-function startBlurtingPhase() {
+// PHASE: BLURTING (COLD RECALL OR NEW WORDS)
+function startBlurtingPhase(stage) {
+  currentSession.stage = stage;
+  currentSession.activeBlurts = new Map();
+
+  if (stage === 'cold_recall') {
+    const count = currentSession.dueWords.length;
+    blurtPhaseTitle.textContent = `Phase 1: Cold Recall (${count} Due ${count === 1 ? 'Card' : 'Cards'})`;
+    blurtInstructions.innerHTML = `Recall the <strong>${count} due ${count === 1 ? 'word' : 'words'}</strong> from previous sessions without any visual prompt. Press <strong>Enter</strong> or click <strong>Add</strong> after each word.`;
+    btnFinishBlurting.textContent = currentSession.newWords.length > 0 ? 'Continue to New Words' : 'Finish Blurting';
+  } else {
+    const hasColdRecall = currentSession.dueWords.length > 0;
+    blurtPhaseTitle.textContent = hasColdRecall
+      ? `Phase 2b: Blurting (New Words)`
+      : `Phase 2: Blurting (Unprompted Dump)`;
+    blurtInstructions.innerHTML = `Type the new items in any order. Press <strong>Enter</strong> or click <strong>Add</strong> after each word.`;
+    btnFinishBlurting.textContent = 'Finish Blurting';
+  }
+
   showView(viewBlurting);
   blurtChipContainer.innerHTML = '';
   blurtChipContainer.appendChild(emptyChipsPlaceholder);
@@ -720,7 +838,7 @@ function startBlurtingPhase() {
 
     if (currentSession.timerSecondsLeft <= 0) {
       clearInterval(currentSession.timerId);
-      finishBlurtingPhase();
+      finishCurrentBlurtingStage();
     }
   }, 1000);
 }
@@ -730,8 +848,8 @@ function handleAddBlurtWord() {
   if (!raw) return;
 
   const normalized = raw.toLowerCase();
-  if (!currentSession.blurtedWords.has(normalized)) {
-    currentSession.blurtedWords.add(normalized);
+  if (!currentSession.activeBlurts.has(normalized)) {
+    currentSession.activeBlurts.set(normalized, raw);
 
     if (!emptyChipsPlaceholder.classList.contains('hidden')) {
       emptyChipsPlaceholder.classList.add('hidden');
@@ -758,46 +876,145 @@ btnAddBlurt.addEventListener('click', handleAddBlurtWord);
 
 btnFinishBlurting.addEventListener('click', () => {
   if (currentSession.timerId) clearInterval(currentSession.timerId);
-  finishBlurtingPhase();
+  finishCurrentBlurtingStage();
 });
 
+function finishCurrentBlurtingStage() {
+  // Commit any unsubmitted word left in the input box on timeout/finish
+  handleAddBlurtWord();
+
+  const blurts = Array.from(currentSession.activeBlurts.entries()).map(([norm, raw]) => ({ norm, raw }));
+  if (currentSession.stage === 'cold_recall') {
+    currentSession.dueBlurts = blurts;
+    if (currentSession.newWords.length > 0) {
+      startObservationPhase();
+    } else {
+      evaluateAndShowResults();
+    }
+  } else {
+    currentSession.newBlurts = blurts;
+    evaluateAndShowResults();
+  }
+}
+
+// LEVENSHTEIN DISTANCE FOR TYPO TOLERANCE
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(
+        dp[i - 1][j] + 1,
+        dp[i][j - 1] + 1,
+        dp[i - 1][j - 1] + cost
+      );
+    }
+  }
+  return dp[m][n];
+}
+
+function matchBlurtsToTargets(targets, blurts) {
+  const usedIndices = new Set();
+  const matches = new Array(targets.length).fill(null);
+
+  // Pass 1: Exact matches
+  targets.forEach((word, tIdx) => {
+    const targetNorm = word.toLowerCase();
+    const bIdx = blurts.findIndex((b, idx) => !usedIndices.has(idx) && b.norm === targetNorm);
+    if (bIdx !== -1) {
+      usedIndices.add(bIdx);
+      matches[tIdx] = { status: 'exact', matchedInput: blurts[bIdx].raw };
+    }
+  });
+
+  // Pass 2: Fuzzy typo matches for remaining targets
+  targets.forEach((word, tIdx) => {
+    if (matches[tIdx]) return;
+    const targetNorm = word.toLowerCase();
+    const maxDist = targetNorm.length >= 9 ? 2 : (targetNorm.length >= 5 ? 1 : 0);
+    if (maxDist === 0) return;
+
+    let bestIdx = -1;
+    let bestDist = maxDist + 1;
+
+    blurts.forEach((b, idx) => {
+      if (usedIndices.has(idx)) return;
+      const dist = levenshtein(targetNorm, b.norm);
+      if (dist <= maxDist && dist < bestDist) {
+        bestDist = dist;
+        bestIdx = idx;
+      }
+    });
+
+    if (bestIdx !== -1) {
+      usedIndices.add(bestIdx);
+      matches[tIdx] = { status: 'typo', matchedInput: blurts[bestIdx].raw };
+    }
+  });
+
+  const intrusions = blurts
+    .filter((_, idx) => !usedIndices.has(idx))
+    .map(b => b.raw);
+
+  return { matches, intrusions };
+}
+
 // PHASE 3: EVALUATION & LEITNER RESOLUTION
-function finishBlurtingPhase() {
+function evaluateAndShowResults() {
   const store = loadStore();
   const today = getTodayString();
-  const normalizedBlurted = new Set(Array.from(currentSession.blurtedWords).map(w => w.toLowerCase()));
+
+  const dueEval = matchBlurtsToTargets(currentSession.dueWords, currentSession.dueBlurts);
+  const newEval = matchBlurtsToTargets(currentSession.newWords, currentSession.newBlurts);
+
+  const items = [
+    ...currentSession.dueWords.map((word, idx) => ({ word, source: 'Due Review', match: dueEval.matches[idx] })),
+    ...currentSession.newWords.map((word, idx) => ({ word, source: 'New Word', match: newEval.matches[idx] }))
+  ];
+  const allIntrusions = [...dueEval.intrusions, ...newEval.intrusions];
 
   resultsTableBody.innerHTML = '';
   let correctCount = 0;
 
-  currentSession.activeWords.forEach(word => {
-    const isRecalled = normalizedBlurted.has(word.toLowerCase());
+  items.forEach(({ word, source, match }) => {
+    const isRecalled = match !== null;
     const existingCard = store.cards[word];
     const prevBox = existingCard ? existingCard.box : 0;
     let newBox = 1;
 
     if (isRecalled) {
       correctCount++;
-      newBox = existingCard ? Math.min(5, existingCard.box + 1) : 2; // New recalled words advance to Box 2
+      newBox = existingCard ? Math.min(5, existingCard.box + 1) : 2;
     } else {
-      newBox = 1; // Missed items demote directly to Box 1
+      newBox = 1;
     }
 
     const intervalDays = LEITNER_INTERVALS[newBox];
     const nextReview = addDaysToDateString(today, intervalDays);
 
-    // Commit to Leitner database
     store.cards[word] = {
       box: newBox,
       nextReview: nextReview,
       lastTested: today
     };
 
-    // Render table row
+    let statusHtml = `<span class="tag-miss">MISSED</span>`;
+    if (match && match.status === 'exact') {
+      statusHtml = `<span class="tag-hit">RECALLED</span>`;
+    } else if (match && match.status === 'typo') {
+      statusHtml = `<span class="tag-typo">RECALLED (Typo: "${match.matchedInput}")</span>`;
+    }
+
     const row = document.createElement('tr');
     row.innerHTML = `
       <td><strong>${word}</strong></td>
-      <td><span class="${isRecalled ? 'tag-hit' : 'tag-miss'}">${isRecalled ? 'RECALLED' : 'MISSED'}</span></td>
+      <td><span class="tag-phase">${source}</span></td>
+      <td>${statusHtml}</td>
       <td>${prevBox === 0 ? 'New Item' : `Box ${prevBox}`}</td>
       <td><strong>Box ${newBox}</strong></td>
       <td>${nextReview} (${intervalDays}d)</td>
@@ -805,9 +1022,32 @@ function finishBlurtingPhase() {
     resultsTableBody.appendChild(row);
   });
 
+  // Render intrusion errors
+  intrusionsList.innerHTML = '';
+  if (allIntrusions.length > 0) {
+    allIntrusions.forEach(word => {
+      const chip = document.createElement('span');
+      chip.className = 'intrusion-chip';
+      chip.textContent = word;
+      intrusionsList.appendChild(chip);
+    });
+    intrusionsSection.classList.remove('hidden');
+  } else {
+    intrusionsSection.classList.add('hidden');
+  }
+
+  store.lastSessionDate = today;
+  if (!Array.isArray(store.history)) store.history = [];
+  store.history.push({
+    date: today,
+    score: correctCount,
+    total: items.length,
+    intrusions: allIntrusions.length
+  });
   saveStore(store);
 
-  resultsSummaryText.textContent = `Score: ${correctCount}/${currentSession.activeWords.length} (${Math.round((correctCount / currentSession.activeWords.length) * 100)}%). Spaced review intervals adjusted.`;
+  const pct = items.length > 0 ? Math.round((correctCount / items.length) * 100) : 0;
+  resultsSummaryText.textContent = `Score: ${correctCount}/${items.length} (${pct}%). Intrusions: ${allIntrusions.length}. Spaced review intervals adjusted.`;
   showView(viewResults);
 }
 
@@ -817,7 +1057,7 @@ btnReturnDashboard.addEventListener('click', () => {
 });
 
 btnStartDaily.addEventListener('click', () => {
-  startObservationPhase();
+  startSession();
 });
 
 btnResetProgress.addEventListener('click', () => {
